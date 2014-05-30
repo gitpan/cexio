@@ -1,6 +1,6 @@
 #######################################
 # CEX.IO Beta Trade API Perl Module   #
-#  version 0.1.1                      #
+#  version 0.2.1                      #
 #                                     #
 # Author: Michael W. Renz             #
 # Created: 30-May-2014                #
@@ -15,10 +15,10 @@ use Exporter;
 use Carp;
 
 my $modname="cexio-perl-module";
-my $modver="0.1.1";
+my $modver="0.2.1";
 
 use vars qw($VERSION);
-$cexio::VERSION = '0.1.1';
+$cexio::VERSION = '0.2.1';
 
 use JSON;
 use Digest::SHA qw(hmac_sha256_hex);
@@ -335,7 +335,7 @@ See https://cex.io/api for the most updated API docs and more details on each of
 
 =head1 VERSION
 
-$Id: cexio.pm,v 0.1.1 2014/05/30 17:16:00 CRYPTOGRA Exp $
+$Id: cexio.pm,v 0.2.1 2014/05/30 17:30:00 CRYPTOGRA Exp $
 
 
 =head1 AUTHOR
