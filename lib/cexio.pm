@@ -1,10 +1,44 @@
 #######################################
 # CEX.IO Beta Trade API Perl Module   #
-#  version 0.2.1                      #
+#  version 0.2.3                      #
 #                                     #
 # Author: Michael W. Renz             #
-# Created: 30-May-2014                #
+# Created: 03-Jun-2014                #
 #######################################
+
+=pod
+
+=head1 NAME
+
+cexio - perl module interface to cex.io/ghash.io's API
+
+=head1 SYNOPSIS
+
+	use cexio;
+	use Data::Dumper;
+
+	# public functions do not require any options
+	my $cexio_object = new cexio();
+
+	print Dumper( $cexio_object->ticker("GHS", "BTC" ) ) ."\n";
+	print Dumper( $cexio_object->order_book("GHS", "BTC", "100") ) ."\n";
+	print Dumper( $cexio_object->trade_history("GHS", "BTC", "1184696000") ) ."\n";
+
+	# private functions require username, key, and secret to be set
+	my $cexio_object = new cexio( { username => "sample-user", key => "this-is-not-a-real-key", secret => "this-is-not-a-real-secret" } );
+
+	print Dumper( $cexio_object->open_orders("GHS","BTC") ) ."\n";
+	print Dumper( $cexio_object->cancel_order("1") ) ."\n";
+	print Dumper( $cexio_object->place_order("GHS", "BTC", "buy", "1", "0.007") ) ."\n";
+	print Dumper( $cexio_object->hashrate() ) ."\n";
+	print Dumper( $cexio_object->workers() ) ."\n";
+
+
+=head1 DESCRIPTION
+
+Implements the cex.io API described at https://cex.io/api as a perl module
+
+=cut
 
 package cexio;
 
@@ -15,10 +49,10 @@ use Exporter;
 use Carp;
 
 my $modname="cexio-perl-module";
-my $modver="0.2.1";
+my $modver="0.2.3";
 
 use vars qw($VERSION);
-$cexio::VERSION = '0.2.1';
+$cexio::VERSION = '0.2.3';
 
 use JSON;
 use Digest::SHA qw(hmac_sha256_hex);
@@ -54,6 +88,20 @@ $cexio{urls}{api}{ghash}{workers}  = $cexio{urls}{api}{ghash_url}. "/workers";
 
 my $o = new Hash::Flatten();
 
+=pod
+
+=over 4
+
+=item my $cexio_object = new cexio( \%options );
+
+The only time you need to pass options to new() is when you are using a private function.
+
+The only options you need to pass are 'username', 'key', and 'secret'.
+
+=back
+
+=cut
+
 sub new
 {
 	my ($class, $options) = @_;
@@ -70,6 +118,32 @@ sub new
 	return bless($self, $class);	
 }
 
+=pod
+
+=head2 Public functions
+
+=over 4
+
+=item my $ticker = $cexio_object->ticker( $primary, $secondary );
+
+Returns the current ticker for orders of $primary for $secondary.
+
+=item my $order_book = $cexio_object->order_book( $primary, $secondary, $depth );
+
+Returns the current list of bids and asks for price and amount of $primary for $secondary
+
+Setting $depth is optional, and will limit the amount of orders returned.
+
+=item my $trade_history = $cexio_object->trade_history( $primary, $secondary, $since );
+
+Returns the current trade history of $primary for $secondary since $since trade id.
+
+Setting $since is optional, and will limit the number of trades returned.
+
+=back
+
+=cut
+
 # subroutines for public functions
 sub ticker
 {
@@ -80,16 +154,52 @@ sub ticker
 sub order_book
 {
 	my ($self, $primary, $secondary, $depth) = @_;
-	if ( defined($depth) ) { $secondary .= "?depth=${depth}"; }
+	if ( defined($depth) ) { $secondary .= "/?depth=${depth}"; }
 	return $o->unflatten( $self->_json_get($cexio{urls}{api}{order_book}.$primary."/".$secondary) );
 }
 
 sub trade_history
 {
 	my ($self, $primary, $secondary, $since) = @_;
-	if ( defined($since) ) { $secondary .= "?since=${since}"; }
+	if ( defined($since) ) { $secondary .= "/?since=${since}"; }
 	return $self->_json_get($cexio{urls}{api}{trade_history}.$primary."/".$secondary);
 }
+
+=pod
+
+=head2 Private functions
+
+=over 4
+
+=item my $open_orders = $cexio_object->open_orders( $primary, $secondary );
+
+Returns an array of open orders of $primary for $secondary that includes:
+	id - order id
+	time - timestamp
+	type - buy or sell
+	price - price
+	amount - amount
+	pending - pending amount (if partially executed)
+
+=item my $cancel_order = $cexio_object->cancel_order( $order_id );
+
+Returns 'true' if $order_id has been found and cancelled.
+
+=item my $place_order = $cexio_object->place_order( $primary, $secondary, "buy" | "sell", $quantity, $price );
+
+Places an order of $primary for $secondary that is either "buy" or "sell" of $quantity at $price.
+
+Returns an associative array representing the order placed:
+	id - order id
+	time - timestamp
+	type - buy or sell
+	price - price
+	amount - amount
+	pending - pending amount (if partially executed)
+
+=back
+
+=cut
 
 # subroutines for private functions
 sub balance
@@ -120,8 +230,27 @@ sub place_order
 	$self->{post_message}{type}   = $type;
 	$self->{post_message}{amount} = $amount;
 	$self->{post_message}{price}  = $price;
-	return $o->unflatten( $self->_json_post( $cexio{urls}{api}{place_order}.$primary."/".$secondary ) );
+
+	return $o->unflatten( $self->_json_post( $cexio{urls}{api}{place_order}.$primary."/".$secondary."/" ) );
 }
+
+=pod
+
+=head2 GHash.io-specific private functions
+
+=over 4
+
+=item my $hashrate = $cexio_object->hashrate();
+
+Takes no options.  Returns an associative array of general mining hashrate statistics for the past day in MH/s.
+
+=item my $workers = $cexio_object->workers();
+
+Takes no options.  Returns an associative array of mining hashrate statistics broken down by workers in MH/s.
+
+=back
+
+=cut
 
 # subroutines for private ghash.io functions
 sub hashrate
@@ -159,10 +288,9 @@ sub _generate_signature
 	}
 
 	# Now let's build a post_message
-	$self->{post_message} = { key        => $self->{key},
-	                         signature   => $self->{signature},
-	                         nonce       => $nonce
-				} ;
+	$self->{post_message}{key}         = $self->{key};
+	$self->{post_message}{signature}   = $self->{signature};
+	$self->{post_message}{nonce}       = $nonce;
 
 	return $self;
 }
@@ -196,122 +324,15 @@ sub TRACE {}
 
 1;
 
-
-=head1 NAME
-
-cexio - perl module interface to cex.io/ghash.io's API
-
-
-=head1 SYNOPSIS
-
-	use cexio;
-	use Data::Dumper;
-
-	# public functions do not require any options
-	my $cexio_object = new cexio();
-
-	print Dumper( $cexio_object->ticker("GHS", "BTC" ) ) ."\n";
-	print Dumper( $cexio_object->order_book("GHS", "BTC", "100") ) ."\n";
-	print Dumper( $cexio_object->trade_history("GHS", "BTC", "1184696000") ) ."\n";
-
-	# private functions require username, key, and secret to be set
-	my $cexio_object = new cexio( { username => "sample-user", key => "this-is-not-a-real-key", secret => "this-is-not-a-real-secret" } );
-
-	print Dumper( $cexio_object->open_orders("GHS","BTC") ) ."\n";
-	print Dumper( $cexio_object->cancel_order("1") ) ."\n";
-	print Dumper( $cexio_object->place_order("GHS", "BTC", "buy", "1", "0.007") ) ."\n";
-	print Dumper( $cexio_object->hashrate() ) ."\n";
-	print Dumper( $cexio_object->workers() ) ."\n";
-
-
-=head1 DESCRIPTION
-
-Implements the cex.io API described at https://cex.io/api as a perl module
-
-=over 4
-
-=item my $cexio_object = new cexio( \%options );
-
-The only time you need to pass options to new() is when you are using a private function.
-
-The only options you need to pass are 'username', 'key', and 'secret'.
-
-=back
-
-=head2 Public functions
-
-=over 4
-
-=item my $ticker = $cexio_object->ticker( $primary, $secondary );
-
-Returns the current ticker for orders of $primary for $secondary.
-
-=item my $order_book = $cexio_object->order_book( $primary, $secondary, $depth );
-
-Returns the current list of bids and asks for price and amount of $primary for $secondary
-
-Setting $depth is optional, and will limit the amount of orders returned.
-
-=item my $trade_history = $cexio_object->trade_history( $primary, $secondary, $since );
-
-Returns the current trade history of $primary for $secondary since $since trade id.
-
-Setting $since is optional, and will limit the number of trades returned.
-
-=back
-
-=head2 Private functions
-
-=over 4
-
-=item my $open_orders = $cexio_object->open_orders( $primary, $secondary );
-
-Returns an array of open orders of $primary for $secondary that includes:
-	id - order id
-	time - timestamp
-	type - buy or sell
-	price - price
-	amount - amount
-	pending - pending amount (if partially executed)
-
-=item my $cancel_order = $cexio_object->cancel_order( $order_id );
-
-Returns 'true' if $order_id has been found and cancelled.
-
-=item my $place_order = $cexio_object->place_order( $primary, $secondary, "buy" | "sell", $quantity, $price );
-
-Places an order of $primary for $secondary that is either "buy" or "sell" of $quantity at $price.
-
-Returns an associative array representing the order placed:
-	id - order id
-	time - timestamp
-	type - buy or sell
-	price - price
-	amount - amount
-	pending - pending amount (if partially executed)
-
-=back
-
-=head2 GHash.io-specific private functions
-
-=over 4
-
-=item my $hashrate = $cexio_object->hashrate();
-
-Takes no options.  Returns an associative array of general mining hashrate statistics for the past day in MH/s.
-
-=item my $workers = $cexio_object->workers();
-
-Takes no options.  Returns an associative array of mining hashrate statistics broken down by workers in MH/s.
-
-=back
-
+=pod
 
 =head1 CHANGELOG
 
 =over 4
 
-=item Changes to POD to fix formatting
+=item * Changes to POD to fix formatting
+
+=item * Fixed _generate_signature private function to merge $self->{post_message} instead of overwriting it
 
 =back
 
@@ -320,10 +341,10 @@ Takes no options.  Returns an associative array of mining hashrate statistics br
 
 =over 4
 
-=item Add comprehensive unit tests to module distribution
-=item Add server-side error handling
-=item Fix any bugs that anybody reports
-=item Write better documentation.  Always write better documentation
+=item * Add comprehensive unit tests to module distribution
+=item * Add server-side error handling
+=item * Fix any bugs that anybody reports
+=item * Write better documentation.  Always write better documentation
 
 =back
 
@@ -335,7 +356,7 @@ See https://cex.io/api for the most updated API docs and more details on each of
 
 =head1 VERSION
 
-$Id: cexio.pm,v 0.2.1 2014/05/30 17:30:00 CRYPTOGRA Exp $
+$Id: cexio.pm,v 0.2.3 2014/06/08 09:08:00 CRYPTOGRA Exp $
 
 
 =head1 AUTHOR
